@@ -8,11 +8,24 @@ import zipfile
 import subprocess
 import json
 import tqdm
+import shutil
+
+start_time = time.time()
 
 url = "https://github.com/xiaosuyyds/MuRainBot2/archive/refs/heads/master.zip"
 
+print("欢迎您使用Lagrange.Onebot安装脚本")
+
 work_path = os.path.abspath(os.path.dirname(__file__))
 onebot_path = os.path.join(work_path, "OneBot")
+
+# 检查OneBot是否已经存在
+if os.path.exists(onebot_path):
+    if input("OneBot文件夹已经存在，是否删除？(y/n): ").lower() == "y":
+        shutil.rmtree(onebot_path)
+    else:
+        print("已取消安装")
+        exit()
 
 # 增加重连接次数：
 requests.DEFAULT_RETRIES = 5
@@ -21,7 +34,6 @@ s = requests.session()
 s.keep_alive = False
 
 # 安装OneBot实现
-print("欢迎您使用Lagrange.Onebot安装脚本")
 print("将安装LagrangeDev/Lagrange.Core")
 
 # 由于github下载工作流附件需要登录故放弃
@@ -246,5 +258,5 @@ else:
 
     print("配置文件已修改")
 
-print("您本次 Lagrange.Onebot 安装耗时 %s 秒，打败全球 11.4514% 的用户")
+print(f"您本次 Lagrange.Onebot 安装耗时 {time.time() - start_time} 秒，打败全球 11.4514% 的用户")
 print("Lagrange.Onebot安装完成，期待与您的下次见面...")
