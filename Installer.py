@@ -11,6 +11,7 @@ import tqdm
 import shutil
 import multitasking
 import signal
+import sys
 from retry import retry
 
 signal.signal(signal.SIGINT, multitasking.killall)
@@ -58,7 +59,7 @@ def get_file_size(url: str) -> int:
     return int(file_size)
 
 
-def download(url: str, file_name: str, retry_times: int = 3, each_size=10 * MB) -> None:
+def download(url: str, file_name: str, retry_times: int = 3, each_size=15 * MB) -> None:
     """
     根据文件直链和文件名下载文件
 
@@ -130,7 +131,13 @@ url = "https://github.com/xiaosuyyds/MuRainBot2/archive/refs/heads/master.zip"
 
 print("欢迎您使用Lagrange.Onebot安装脚本\n与君初相识，犹如故人归\n")
 
-work_path = os.path.abspath(os.path.dirname(__file__))
+if getattr(sys, 'frozen', False):
+    work_path = os.path.dirname(sys.executable)
+elif __file__:
+    work_path = os.path.dirname(__file__)
+else:
+    work_path = os.getcwd()
+
 onebot_path = os.path.join(work_path, "OneBot")
 
 # 检查OneBot是否已经存在
@@ -152,6 +159,8 @@ if os.path.exists(onebot_path):
         print("已取消安装")
         exit()
     print()
+
+print("信息确认: \n当前工作目录 %s \n将在 %s 安装Lagrange.OneBot\n" % (work_path, onebot_path))
 
 # 安装OneBot实现
 print("准备安装LagrangeDev/Lagrange.Core")
@@ -246,9 +255,10 @@ zip_path = str(os.path.join(work_path, choice["name"]))
 flag = True
 
 print("海内存知己，天涯若比邻。正在为你下载Lagrange.Onebot，请稍等...")
-choice["browser_download_url"] = requests.head(choice["browser_download_url"], proxies=proxies).headers.get("location", 0)
+choice["browser_download_url"] = requests.head(choice["browser_download_url"],
+                                               proxies=proxies).headers.get("location", 0)
 
-while flag:
+for _ in range(3):
     download(choice["browser_download_url"], zip_path)
 
     print("Lagrange.Onebot下载完成\n")
@@ -256,29 +266,39 @@ while flag:
     print("正在解压Lagrange.Onebot...")
 
     try:
-        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-            zip_ref.extractall()
+        zip_file = zipfile.ZipFile(zip_path)
+        for names in zip_file.namelist():
+            zip_file.extract(names, onebot_path)
+        zip_file.close()
         flag = False
-    except zipfile.BadZipfile:
-        print("解压失败，正在重新下载...\n")
+        break
+    except Exception as e:
+        print("解压失败，报错: %s正在重新下载...\n" % repr(e))
         continue
-os.rename(os.path.join(work_path, "publish"), onebot_path)
-os.remove(choice["name"])
+if flag:
+    print("已达重试上线，请尝试重新运行此程序")
+    exit()
 
+os.remove(zip_path)
 print("Lagrange.Onebot解压完成\n")
 
 # 寻找Lagrange.Onebot的执行文件
 flag = 0
 lagrange_path = ""
-for root, dirs, files in os.walk(onebot_path):
+for root, dirs, files in os.walk(os.path.join(onebot_path, "publish")):
     for file in files:
         if "Lagrange.OneBot" in file:
             lagrange_path = os.path.join(root, file)
             flag = 1
             break
+
 if flag == 0:
     print("未找到Lagrange.Onebot的执行文件")
     exit()
+
+os.rename(lagrange_path, os.path.join(onebot_path, os.path.basename(lagrange_path)))
+lagrange_path = os.path.join(onebot_path, os.path.basename(lagrange_path))
+os.rmdir(os.path.join(onebot_path, "publish"))
 
 print("已为您下载最新的Lagrange.Onebot，请坐和放宽\n接下来进入我们需要更改一些配置文件...")
 
@@ -393,5 +413,5 @@ else:
     with open(lagrange_config_path, "w", encoding="utf-8") as f:
         json.dump(config, f, ensure_ascii=False, indent=4)
 
-print(f"您本次 Lagrange.Onebot 安装耗时 {time.time() - start_time} 秒，打败全球 11.4514% 的用户\n")
+print(f"您本次 Lagrange.Onebot 安装耗时 {int(time.time() - start_time)+0.114514} 秒，打败全球 19.19810% 的用户\n")
 print("青，取之于蓝而青于蓝；冰，水为之而寒于水。\nLagrange.Onebot安装完成，期待与您的下次见面...")
