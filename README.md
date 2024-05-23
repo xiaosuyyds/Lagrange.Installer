@@ -1,5 +1,5 @@
 # Lagrange.Installer
-一个针对 [Lagrange.OneBot]("https://github.com/LagrangeDev/Lagrange.Core") 的安装脚本
+> #### 一个针对 [Lagrange.OneBot](https://github.com/LagrangeDev/Lagrange.Core) 的安装脚本
 
 ## 💻如何安装
 
