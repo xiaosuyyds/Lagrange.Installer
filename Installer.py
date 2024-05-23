@@ -50,7 +50,7 @@ def get_file_size(url: str) -> int:
     如果不支持则会报错
 
     """
-    response = requests.head(url)
+    response = requests.head(url, proxies=proxies)
     file_size = response.headers.get('content-length', 0)
     if file_size is None:
         raise ValueError('该文件不支持多线程分段下载！')
@@ -58,7 +58,7 @@ def get_file_size(url: str) -> int:
     return int(file_size)
 
 
-def download(url: str, file_name: str, retry_times: int = 3, each_size=5 * MB) -> None:
+def download(url: str, file_name: str, retry_times: int = 3, each_size=10 * MB) -> None:
     """
     根据文件直链和文件名下载文件
 
@@ -188,6 +188,9 @@ print("最新工作流产物:", latest_workflow_run_artifacts)
 
 lagrange_url = "https://api.github.com/repos/LagrangeDev/Lagrange.Core/releases"
 response = requests.get(lagrange_url, proxies=proxies)
+if response.status_code != 200:
+    print("获取Lagrange.Core最新版本失败，请检查网络连接或稍后重试")
+    exit()
 latest_release_url = response.json()[0]["assets"]
 
 print("请选择要安装的Lagrange.Onebot版本:")
@@ -238,16 +241,27 @@ if choice < 1 or choice > len(latest_release_url):
 
 choice = latest_release_url[choice - 1]
 
+zip_path = str(os.path.join(work_path, choice["name"]))
+
+flag = True
+
 print("海内存知己，天涯若比邻。正在为你下载Lagrange.Onebot，请稍等...")
-choice["browser_download_url"] = requests.head(choice["browser_download_url"]).headers.get("location", 0)
-download(choice["browser_download_url"], str(os.path.join(work_path, choice["name"])))
+choice["browser_download_url"] = requests.head(choice["browser_download_url"], proxies=proxies).headers.get("location", 0)
 
-print("Lagrange.Onebot下载完成\n")
+while flag:
+    download(choice["browser_download_url"], zip_path)
 
-print("正在解压Lagrange.Onebot...")
+    print("Lagrange.Onebot下载完成\n")
 
-with zipfile.ZipFile(choice["name"], 'r') as zip_ref:
-    zip_ref.extractall()
+    print("正在解压Lagrange.Onebot...")
+
+    try:
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            zip_ref.extractall()
+        flag = False
+    except zipfile.BadZipfile:
+        print("解压失败，正在重新下载...\n")
+        continue
 os.rename(os.path.join(work_path, "publish"), onebot_path)
 os.remove(choice["name"])
 
@@ -266,17 +280,22 @@ if flag == 0:
     print("未找到Lagrange.Onebot的执行文件")
     exit()
 
-print("已为您下载最新的Lagrange.Onebot，一切即将完成，请坐和放宽\n接下来进入我们需要更改一些配置文件...")
+print("已为您下载最新的Lagrange.Onebot，请坐和放宽\n接下来进入我们需要更改一些配置文件...")
 
 uid = input("请输入bot的QQ号(不输入则请勾选“下次登录无需确认”): ")
 password = input("请输入bot的密码(不输入则请勾选“下次登录无需确认”): ")
 
 if uid == "":
     uid = 0
-uid = int(uid)
+try:
+    uid = int(uid)
+except ValueError:
+    print("QQ号必须为数字")
+    exit()
 
 os.chdir(onebot_path)
 
+# 先运行一下Lagrange.Onebot，以生成配置文件
 p = subprocess.Popen(
     lagrange_path,
     shell=True,
@@ -325,7 +344,7 @@ flag = 0
 
 def login():
     global flag, uid
-    print("休对故人思故国，且将新火试新茶海。正在进行首次登录流程，请不要结束进程...")
+    print("一切即将准备就绪，正在进行首次登录流程，请不要结束进程...")
     p = subprocess.Popen(
         lagrange_path,
         stdout=subprocess.PIPE,
