@@ -9,12 +9,9 @@ import json
 import tqdm
 import shutil
 import multitasking
-import signal
 import sys
 from retry import retry
 import argparse
-
-signal.signal(signal.SIGINT, multitasking.killall)
 
 start_time = time.time()
 
@@ -158,13 +155,13 @@ def install(silent_installation: bool = False):
                         print("无法删除OneBot文件夹，文件被占用，请尝试重启电脑等方式: " + repr(e))
                     else:
                         print("删除OneBot文件夹时发生未知错误: " + repr(e))
-                    exit()
+                    sys.exit()
                 except Exception as e:
                     print("删除OneBot文件夹时发生未知错误: " + repr(e))
-                    exit()
+                    sys.exit()
             else:
                 print("已取消安装")
-                exit()
+                sys.exit()
             print()
     else:
         if os.path.exists(onebot_path):
@@ -210,7 +207,7 @@ def install(silent_installation: bool = False):
     response = requests.get(lagrange_url, proxies=proxies)
     if response.status_code != 200:
         print("获取Lagrange.Core最新版本失败，请检查网络连接或稍后重试")
-        exit()
+        sys.exit()
     latest_release_url = response.json()[0]["assets"]
     if not silent_installation:
         print("请选择要安装的Lagrange.Onebot版本:")
@@ -262,7 +259,7 @@ def install(silent_installation: bool = False):
 
     if choice < 1 or choice > len(latest_release_url):
         print("无效的选择")
-        exit()
+        sys.exit()
 
     choice = latest_release_url[choice - 1]
 
@@ -298,7 +295,7 @@ def install(silent_installation: bool = False):
     if flag:
         if not silent_installation:
             print("已达重试上线，请尝试重新运行此程序")
-        exit()
+        sys.exit()
 
     os.remove(zip_path)
     if not silent_installation:
@@ -317,7 +314,7 @@ def install(silent_installation: bool = False):
     if flag == 0:
         if not silent_installation:
             print("未找到Lagrange.Onebot的执行文件")
-        exit()
+        sys.exit()
 
     os.rename(lagrange_path, os.path.join(onebot_path, os.path.basename(lagrange_path)))
     lagrange_path = os.path.join(onebot_path, os.path.basename(lagrange_path))
@@ -336,7 +333,7 @@ def arrangement(lagrange_path: str, silent_installation: bool = False, uid: int 
             uid = int(uid)
         except ValueError:
             print("QQ号必须为数字")
-            exit()
+            sys.exit()
 
     if uid is None:
         uid = 0
@@ -360,7 +357,14 @@ def arrangement(lagrange_path: str, silent_installation: bool = False, uid: int 
         if "Please Edit the appsettings." in line.decode('utf-8'):
             break
 
-    p.kill()
+    if platform.system() == "Windows":
+        # 获取pid
+        pid = p.pid
+
+        # 结束进程
+        os.system("taskkill /F /T /PID %d" % pid)
+    else:
+        p.kill()
 
     lagrange_config_path = os.path.join(onebot_path, "appsettings.json")
 
@@ -391,9 +395,8 @@ def arrangement(lagrange_path: str, silent_installation: bool = False, uid: int 
     if not silent_installation:
         print("配置文件修改完毕！\n与君初相识，犹如故人归。\n")
 
-    flag = 0
-
     def login(uid):
+        flag = 0
         print("一切即将准备就绪，正在进行首次登录流程，请不要结束进程...")
         p = subprocess.Popen(
             lagrange_path,
@@ -408,6 +411,7 @@ def arrangement(lagrange_path: str, silent_installation: bool = False, uid: int 
                 print("请扫码登陆")
                 os.system("cmd.exe /c " + os.path.join(onebot_path, "qr-%s.png" % uid))
             elif "Login Success" in line.decode('utf-8'):
+                flag = 1
                 print("登录成功，有朋自远方来，不亦乐乎。")
                 try:
                     user_info = requests.get("http://127.0.0.1:5700/get_login_info").json()["data"]
@@ -419,22 +423,37 @@ def arrangement(lagrange_path: str, silent_installation: bool = False, uid: int 
                         print("获取登录账号的用户信息失败")
                 except Exception as e:
                     print("获取登录账号的用户信息失败:", repr(e))
-
-                flag = 1
                 break
             elif "QrCode Expired, Please Fetch QrCode Again" in line.decode('utf-8'):
                 print("二维码已过期，请重新扫码")
-                p.kill()
-                login(uid)
+                if platform.system() == "Windows":
+                    # 获取pid
+                    pid = p.pid
+
+                    # 结束进程
+                    os.system("taskkill /F /T /PID %d" % pid)
+                else:
+                    p.kill()
+                flag = login(uid)
                 break
-        p.kill()
+
+        if platform.system() == "Windows":
+            # 获取pid
+            pid = p.pid
+
+            # 结束进程
+            os.system("taskkill /F /T /PID %d" % pid)
+        else:
+            p.kill()
+
+        return flag
 
     if not silent_installation:
-        login(uid)
+        flag = login(uid)
 
         if flag == 0:
             print("登录失败，请重新运行安装程序")
-            exit()
+            sys.exit()
         else:
             with open(lagrange_config_path, "r+", encoding="utf-8") as f:
                 config = json.load(f)
@@ -458,8 +477,7 @@ if __name__ == "__main__":
     parser.add_argument("-o", "--onebot-path", type=str, help="设置OneBot安装路径，默认为当前目录")
     args = parser.parse_args()
 
-    # silent_installation = args.silent
-    silent_installation = True
+    silent_installation = args.silent
 
     if args.work_path is not None:
         work_path = args.work_path
@@ -480,5 +498,6 @@ if __name__ == "__main__":
     arrangement(lagrange_path, silent_installation=silent_installation, password=args.password, uid=args.uid)
 
     if not silent_installation:
-        print(f"您本次 Lagrange.Onebot 安装耗时 {int(time.time() - start_time) + 0.114514} 秒，打败全球 19.19810% 的用户\n")
+        print(
+            f"您本次 Lagrange.Onebot 安装耗时 {int(time.time() - start_time) + 0.114514} 秒，打败全球 19.19810% 的用户\n")
         print("青，取之于蓝而青于蓝；冰，水为之而寒于水。\nLagrange.Onebot安装完成，期待与您的下次见面...")
