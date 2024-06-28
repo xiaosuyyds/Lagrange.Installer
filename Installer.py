@@ -15,8 +15,8 @@ import argparse
 
 start_time = time.time()
 
-proxies = {'http': '127.0.0.1:10809', 'https': '127.0.0.1:10809'}
-# proxies = None
+# proxies = {'http': '127.0.0.1:10809', 'https': '127.0.0.1:10809'}
+proxies = None
 
 # 定义 1 MB 多少为 B
 MB = 1024 ** 2
@@ -475,6 +475,7 @@ if __name__ == "__main__":
     parser.add_argument("-u", "--uid", type=str, help="设置登录账号的 QQ 号，默认为 0 （设置后运行时将不再询问）")
     parser.add_argument("-w", "--work-path", type=str, help="设置工作目录，默认为当前目录（影响下载时的临时文件位置）")
     parser.add_argument("-o", "--onebot-path", type=str, help="设置OneBot安装路径，默认为当前目录")
+    parser.add_argument("-pr", "--proxy", type=str, help="设置github访问代理，默认不启用，需输入代理地址例如：http://127.0.0.1:12345")
     args = parser.parse_args()
 
     silent_installation = args.silent
@@ -484,6 +485,12 @@ if __name__ == "__main__":
 
     if args.onebot_path is not None:
         onebot_path = args.onebot_path
+
+    if args.proxy is not None:
+        onebot_path = {
+            'http': args.proxy,
+            'https': args.proxy
+        }
 
     start_time = time.time()
 
