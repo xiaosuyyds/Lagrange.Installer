@@ -302,23 +302,40 @@ def install(silent_installation: bool = False):
         print("Lagrange.Onebot解压完成\n")
 
     # 寻找Lagrange.Onebot的执行文件
-    flag = 0
-    lagrange_path = ""
-    for root, dirs, files in os.walk(os.path.join(onebot_path, "publish")):
-        for file in files:
-            if "Lagrange.OneBot" in file:
-                lagrange_path = os.path.join(root, file)
-                flag = 1
-                break
 
-    if flag == 0:
+    # for root, dirs, files in os.walk(os.path.join(onebot_path, "publish")):
+    #     for file in files:
+    #         if "Lagrange.OneBot" in file:
+    #             lagrange_path = os.path.join(root, file)
+    #             flag = 1
+    #             break
+
+    # 由于新版本的目录结构复杂(多层文件夹套娃)将使用递归寻找
+    def find_files(directory, target_file):  # ChatGPT真好用（
+        found_files = []
+
+        for entry in os.listdir(directory):
+            entry_path = os.path.join(directory, entry)
+
+            if os.path.isdir(entry_path):
+                found_files.extend(find_files(entry_path, target_file))
+
+            elif os.path.isfile(entry_path) and target_file in entry:
+                found_files.append(entry_path)
+
+        return found_files
+
+    lagrange_path = find_files(onebot_path, "Lagrange.OneBot")
+    if lagrange_path:
+        lagrange_path = lagrange_path[0]
+    else:
         if not silent_installation:
             print("未找到Lagrange.Onebot的执行文件")
         sys.exit()
 
     os.rename(lagrange_path, os.path.join(onebot_path, os.path.basename(lagrange_path)))
     lagrange_path = os.path.join(onebot_path, os.path.basename(lagrange_path))
-    os.rmdir(os.path.join(onebot_path, "publish"))
+    shutil.rmtree(os.path.join(onebot_path, "Lagrange.OneBot"))
     return lagrange_path
 
 
@@ -372,7 +389,7 @@ def arrangement(lagrange_path: str, silent_installation: bool = False, uid: int 
     with open(lagrange_config_path, "r+", encoding="utf-8") as f:
         config = json.load(f)
         config["Account"]["Uin"] = uid
-        config["SignServerUrl"] = "https://sign.lagrangecore.org/api/sign"
+        # config["SignServerUrl"] = "https://sign.lagrangecore.org/api/sign"  # 最新版拉格兰自动填了这玩意
         config["Implementations"] = [
             {
                 "Type": "HttpPost",
@@ -475,7 +492,8 @@ if __name__ == "__main__":
     parser.add_argument("-u", "--uid", type=str, help="设置登录账号的 QQ 号，默认为 0 （设置后运行时将不再询问）")
     parser.add_argument("-w", "--work-path", type=str, help="设置工作目录，默认为当前目录（影响下载时的临时文件位置）")
     parser.add_argument("-o", "--onebot-path", type=str, help="设置OneBot安装路径，默认为当前目录")
-    parser.add_argument("-pr", "--proxy", type=str, help="设置github访问代理，默认不启用，需输入代理地址例如：http://127.0.0.1:12345")
+    parser.add_argument("-pr", "--proxy", type=str,
+                        help="设置github访问代理，默认不启用，需输入代理地址例如：http://127.0.0.1:12345")
     args = parser.parse_args()
 
     silent_installation = args.silent
@@ -487,16 +505,42 @@ if __name__ == "__main__":
         onebot_path = args.onebot_path
 
     if args.proxy is not None:
-        onebot_path = {
+        proxies = {
             'http': args.proxy,
             'https': args.proxy
         }
+    else:
+        # 如果是windows尝试读取系统注册表中记录的代理
+        if platform.system() == "Windows":
+            print("尝试读取系统代理")
+            try:
+                import winreg
+                reg_path = r"Software\Microsoft\Windows\CurrentVersion\Internet Settings"
+                # 打开注册表键
+                registry_key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, reg_path, 0, winreg.KEY_READ)
+                # 读取是否启用代理
+                is_proxy_enabled = winreg.QueryValueEx(registry_key, "ProxyEnable")[0]
+                if is_proxy_enabled:
+                    proxy_address = winreg.QueryValueEx(registry_key, "ProxyServer")[0]
+                    proxies = {
+                        'http': proxy_address,
+                        'https': proxy_address
+                    }
+                    print("系统代理已启用")
+                else:
+                    print("系统代理未启用")
+            except WindowsError:
+                print("读取系统代理失败")
 
     start_time = time.time()
 
     if not silent_installation:
         print("欢迎您使用Lagrange.Onebot安装脚本\n")
         print("信息确认: \n当前工作目录 %s \n将在 %s 安装Lagrange.OneBot\n" % (work_path, onebot_path))
+        if proxies is not None:
+            print("使用代理:", proxies['https'])
+        else:
+            print("将不使用代理")
 
     lagrange_path = install(silent_installation)
 
