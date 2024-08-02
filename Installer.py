@@ -12,6 +12,8 @@ import multitasking
 import sys
 from retry import retry
 import argparse
+# from PIL import Image
+# from io import BytesIO
 
 start_time = time.time()
 
@@ -26,17 +28,19 @@ headers = {
                   'Chrome/63.0.3239.132 Safari/537.36 QIHU 360SE'
 }
 
-if getattr(sys, 'frozen', False):
-    work_path = os.path.dirname(sys.executable)
-elif __file__:
-    work_path = os.path.dirname(__file__)
-else:
-    work_path = os.getcwd()
+# if getattr(sys, 'frozen', False):
+#     work_path = os.path.dirname(sys.executable)
+# elif __file__:
+#     work_path = os.path.dirname(__file__)
+# else:
+#     work_path = os.getcwd()
+
+work_path = os.path.dirname(os.path.realpath(sys.argv[0]))
 
 onebot_path = os.path.join(work_path, "OneBot")
 
 
-def split(_: int, end: int, step: int) -> list[tuple[int, int]]:
+def split(_: int, end: int, step: int):
     if end == 0:
         raise ValueError("end 值不能为0")
     parts = [(start, min(start + step, end)) for start in range(0, end, step)]
@@ -422,11 +426,33 @@ def arrangement(lagrange_path: str, silent_installation: bool = False, uid: int 
             stderr=subprocess.PIPE,
         )
         time.sleep(1)
+        flag_ = 0
         # 获取实时输出
         for line in iter(p.stdout.readline, b''):
+            # print(line.decode('utf-8'))
             if "QrCode Fetched, Expiration: 120 seconds" in line.decode('utf-8'):
                 print("请扫码登陆")
-                os.system("cmd.exe /c " + os.path.join(onebot_path, "qr-%s.png" % uid))
+                qr_path = os.path.join(onebot_path, "qr-%s.png" % uid)
+                time1 = time.time()
+                while True:
+                    if os.path.exists(qr_path):
+                        print("二维码已保存至", qr_path)
+                        # 打开二维码
+                        if platform.system() == "Windows":
+                            os.system("cmd.exe /c " + qr_path)
+                        # Image.open(open(qr_path, "rb")).show()
+                        break
+                    if time.time() - time1 > 10:
+                        print("二维码获取失败，请重试")
+                        break
+
+                time.sleep(0.1)
+            # elif "█" in line.decode('utf-8') or "▀" in line.decode('utf-8') or "▄" in line.decode('utf-8'):
+            #     print(line.decode('utf-8').split("\n")[0])
+            elif "QrCode State Queried: WaitingForConfirm Uin:" in line.decode('utf-8'):
+                if line.decode('utf-8').split(" ")[-1] != '0' and flag_ == 0:
+                    print("已扫描，请确认登录，登录QQ为:", line.decode('utf-8').split(" ")[-1])
+                    flag_ = 1
             elif "Login Success" in line.decode('utf-8'):
                 flag = 1
                 print("登录成功，有朋自远方来，不亦乐乎。")
