@@ -1,6 +1,7 @@
 # coding:utf-8
 import os
 import platform
+import threading
 import time
 import requests
 import zipfile
@@ -12,6 +13,7 @@ import multitasking
 import sys
 from retry import retry
 import argparse
+
 # from PIL import Image
 # from io import BytesIO
 
@@ -35,6 +37,61 @@ headers = {
 # else:
 #     work_path = os.getcwd()
 
+
+github_proxy_urls = [
+    "https://gh.h233.eu.org",
+    "https://gh.ddlc.top",
+    "https://slink.ltd",
+    "https://gh.con.sh",
+    "https://cors.isteed.cc",
+    "https://hub.gitmirror.com",
+    "https://sciproxy.com",
+    "https://ghproxy.cc",
+    "https://cf.ghproxy.cc",
+    "https://www.ghproxy.cc",
+    "https://ghproxy.cn",
+    "https://www.ghproxy.cn",
+    "https://gh.jiasu.in",
+    "https://dgithub.xyz",
+    "https://download.ixnic.net",
+    "https://download.nuaa.cf",
+    "https://download.scholar.rr.nu",
+    "https://download.yzuu.cf",
+    "https://mirror.ghproxy.com",
+    "https://ghproxy.net",
+    "https://kkgithub.com",
+    "https://gitclone.com",
+    "https://hub.incept.pw",
+    "https://github.moeyy.xyz",
+    "https://mirror.ghproxy.com"
+]
+
+
+def get_working_proxy():
+    working_proxy_urls = []
+
+    def check_proxy(url):
+        try:
+            proxy_url = f"{url}/https://github.com"
+            response = requests.head(proxy_url, timeout=5)
+            if response.ok:
+                print(f"Proxy {url} is working")
+                working_proxy_urls.append(url)
+                return url
+        except requests.exceptions.RequestException:
+            print(f"Proxy {url} is not working")
+            pass
+        return None
+
+    for proxy in github_proxy_urls:
+        if check_proxy(proxy):
+            break
+    if not working_proxy_urls:
+        print("No working proxy found")
+        return None
+    return working_proxy_urls[0]
+
+
 work_path = os.path.dirname(os.path.realpath(sys.argv[0]))
 
 onebot_path = os.path.join(work_path, "OneBot")
@@ -48,7 +105,7 @@ def split(_: int, end: int, step: int):
 
 
 def download(url: str, file_name: str, retry_times: int = 3,
-             each_size: int = 15 * MB, silent_installation: bool = False) -> None:
+             each_size: int = 3 * MB, silent_installation: bool = False) -> None:
     """
     根据文件直链和文件名下载文件
 
@@ -62,11 +119,10 @@ def download(url: str, file_name: str, retry_times: int = 3,
     Return
     ------
     None
-
-
     """
     f = open(file_name, 'wb')
     file_size = get_file_size(url)
+    lock = threading.Lock()
 
     @retry(tries=retry_times)
     @multitasking.task
@@ -94,9 +150,11 @@ def download(url: str, file_name: str, retry_times: int = 3,
             if not silent_installation:
                 # 更新进度条
                 bar.update(chunk_size)
-        f.seek(start)
-        for chunk in chunks:
-            f.write(chunk)
+        # 使用锁来确保文件写入的有序性
+        with lock:
+            f.seek(start)
+            for chunk in chunks:
+                f.write(chunk)
         # 释放已写入的资源
         del chunks
 
@@ -146,7 +204,7 @@ def get_file_size(url: str) -> int:
     return int(file_size)
 
 
-def install(silent_installation: bool = False):
+def install(silent_installation: bool = False, github_url: str="https://github.com/"):
     if not silent_installation:
         # 检查OneBot是否已经存在
         if os.path.exists(onebot_path):
@@ -541,6 +599,7 @@ if __name__ == "__main__":
             print("尝试读取系统代理")
             try:
                 import winreg
+
                 reg_path = r"Software\Microsoft\Windows\CurrentVersion\Internet Settings"
                 # 打开注册表键
                 registry_key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, reg_path, 0, winreg.KEY_READ)
