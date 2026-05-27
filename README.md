@@ -1,6 +1,9 @@
 # Lagrange.Installer
 > #### 一个针对 [Lagrange.OneBot](https://github.com/LagrangeDev/Lagrange.Core) 的安装脚本
 
+> 项目已不再维护，现有代码可能可用也可能不可用。
+> 建议如果有需要的通过官方文档步骤安装。
+
 ## 💻如何安装
 
 1. 下载最新的 [releases](https://github.com/xiaosuyyds/Lagrange.Installer/releases)
